@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💬</text></svg>">
+
+    <title>/devnull Social Network</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        header {
+            background-color: #1DA1F2;
+            color: white;
+            padding: 5px 0;
+            margin-bottom: 20px;
+        }
+        #post-message {
+            margin: 0 20px 20px 20px;
+        }
+        #messages {
+            margin: 0 20px;
+        }
+        .message {
+            background-color: white;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,.1);
+        }
+        footer {
+            background-color: #1DA1F2;
+            color: white;
+            padding: 0px;
+            max-height: 30px;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1 class="text-center">💬 /dev/null</h1>
+    </header>
+    <main>
+        <section id="post-message">
+            <div class="input-group mb-3">
+                <input type="text" class="form-control" id="messageInput" placeholder="What's happening?" aria-label="Message" autocomplete="off" >
+                <div class="input-group-append">
+                    <button class="btn btn-outline-secondary" type="button" id="postButton">Post</button>
+                </div>
+            </div>
+        </section>
+        <section id="messages">
+            <!-- Messages will be displayed here -->
+        </section>
+    </main>
+    <footer class="text-center">
+        <p>&copy; 2023 /devnull The Local Social Network ❤️</p>
+    </footer>
+    <script>
+        // Giphy API configuration
+        const giphy = {
+            baseURL: "https://api.giphy.com/v1/gifs/",
+            apiKey: "0UTRbFtkMxAplrohufYco5IY74U8hOes",
+            tag: "funny",
+            type: "random"
+        };
+
+        document.getElementById('postButton').addEventListener('click', postMessage);
+        document.getElementById('messageInput').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                postMessage();
+            }
+        });
+
+        async function postMessage() {
+            const messageInput = document.getElementById('messageInput');
+            let message = messageInput.value.trim();
+            if (message) {
+                message = sanitizeInput(message); // Sanitize the input
+                let rand = message.split(' ');
+                rand = rand[Math.floor(Math.random()*rand.length)] || false
+                const gifUrl = await fetchRandomGif(rand);
+                const response = await fetchGeneratedResponse(message) || '';
+                saveMessage(message, gifUrl, response);
+                messageInput.value = ''; // Clear the input field
+                renderMessages();
+            }
+        }
+
+        function sanitizeInput(input) {
+            const tempDiv = document.createElement('div');
+            tempDiv.textContent = input;
+            return tempDiv.innerHTML; // This will escape all HTML tags, leaving only text
+        }
+
+        async function fetchRandomGif(msg) {
+            let giphyURL = `${giphy.baseURL}${giphy.type}?api_key=${giphy.apiKey}&tag=${msg || giphy.tag}`;
+            try {
+                const response = await fetch(giphyURL);
+                const data = await response.json();
+                return data.data.images.original.url; // Return the GIF URL
+            } catch (error) {
+                console.error('Error fetching GIF:', error);
+                return ''; // Return empty string in case of error
+            }
+        }
+
+        function saveMessage(message, gifUrl, response) {
+            let messages = JSON.parse(localStorage.getItem('devnullMessages')) || [];
+            messages.push({ text: message, thumbsUp: 0, loves: 0, claps: 0, gifUrl, response });
+          
+            if (messages.length > 10) {
+                messages = messages.slice(-10);
+            }
+
+            localStorage.setItem('devnullMessages', JSON.stringify(messages));
+        }
+
+        function renderMessages() {
+            const messagesContainer = document.getElementById('messages');
+            messagesContainer.innerHTML = '';
+            let messages = JSON.parse(localStorage.getItem('devnullMessages')) || [];
+            messages.slice().reverse().forEach(async (message, index) => {
+                // Random emoji reactions
+                messages[index].thumbsUp += Math.floor(Math.random() * 5);
+                messages[index].loves += Math.floor(Math.random() * 3);
+                messages[index].claps += Math.floor(Math.random() * 2);
+              
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message');
+                messageElement.innerHTML = `
+                    <p>${message.text}</p>
+                    <p>👍 ${message.thumbsUp} ❤️ ${message.loves} 👏 ${message.claps}</p>
+                    <div style="padding: 15px; background: #fafafa">
+                    ${message.response ? `<p>${message.response}</p>` : ''}
+                    ${message.gifUrl ? `<img src="${message.gifUrl}" alt="GIF reply" style="max-width: 50%; height: auto;">` : ''}
+                    </div>
+                `;
+                messagesContainer.appendChild(messageElement);
+            });
+            localStorage.setItem('devnullMessages', JSON.stringify(messages));
+        }
+      
+        async function fetchGeneratedResponse(inputText) {
+          try {
+              const response = await fetch('https://api-inference.huggingface.co/models/google/flan-t5-base', {
+                  method: 'POST',
+                  headers: {
+                      'authority': 'api-inference.huggingface.co',
+                      'accept': '*/*',
+                      'cache-control': 'no-cache',
+                      'content-type': 'application/json',
+                      'origin': 'https://huggingface.co',
+                      'cookie': generateCookie(),
+                      'pragma': 'no-cache',
+                      'referer': 'https://huggingface.co/',
+                      'sec-ch-ua': '"Google Chrome";v="119", "Chromium";v="119", "Not?A_Brand";v="24"'
+                  },
+                  body: JSON.stringify({
+                     // inputs: 'tell me you agree with me in a creative way'
+                      inputs: `respond do this: ${inputText}`,
+                      parameters: {'max_new_tokens': 200 }
+                  })
+              });
+              const data = await response.json();
+              let answer = data[0].generated_text || '';
+              if (answer == inputText)
+                return '';
+              else
+                return data[0].generated_text;
+          } catch (error) {
+              console.error('Error fetching generated response:', error);
+              return '';
+          }
+        }
+      
+        function generateRandomHex(length) {
+            let result = '';
+            const characters = 'abcdef0123456789';
+            for (let i = 0; i < length; i++) {
+                result += characters.charAt(Math.floor(Math.random() * characters.length));
+            }
+            return result;
+        }
+
+        function generateCookie() {
+            const stripeMid = generateRandomHex(8) + '-' + 
+                              generateRandomHex(4) + '-' + 
+                              generateRandomHex(4) + '-' + 
+                              generateRandomHex(4) + '-' + 
+                              generateRandomHex(12);
+
+            const token = generateRandomHex(64);
+            const awsWafToken = generateRandomHex(36) + ':CQoAamRxs2ksAAAA:' + generateRandomHex(160);
+            const stripeSid = generateRandomHex(8) + '-' + 
+                              generateRandomHex(4) + '-' + 
+                              generateRandomHex(4) + '-' + 
+                              generateRandomHex(4) + '-' + 
+                              generateRandomHex(12);
+
+            return `__stripe_mid=${stripeMid}; token=${token}; aws-waf-token=${awsWafToken}; __stripe_sid=${stripeSid}`;
+        }
+
+
+      
+
+        // Initial render
+        renderMessages();
+      
+    </script>
+</body>
+</html>
